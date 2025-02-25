@@ -1,8 +1,7 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import psycopg2
 from psycopg2 import extras
 import logging
-
 
 app = Flask(__name__)
 
@@ -10,14 +9,18 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Данные для аутентификации
+USER_DATA = {
+    "administrator": "root"
+}
 
-def get_connection():
+def get_connection(username, password):
     """Создает новое соединение с базой данных"""
     try:
         conn = psycopg2.connect(
             database="tsg",
-            user="administrator",
-            password="root",
+            user=username,
+            password=password,
             host="localhost",
             port="5432"
         )
@@ -26,13 +29,27 @@ def get_connection():
         logger.error(f"Connection failed: {e}")
         raise
 
+def check_auth(username, password):
+    """Проверяет логин и пароль"""
+    return username in USER_DATA and USER_DATA[username] == password
 
 @app.route('/api/latest_payments', methods=['GET'])
 def get_latest_payments():
+    # Получаем логин и пароль из query-параметров
+    username = request.args.get('username')
+    password = request.args.get('password')
+
+    # Проверяем аутентификацию
+    if not check_auth(username, password):
+        return jsonify({
+            "status": "error",
+            "message": "Неверный логин или пароль"
+        }), 401
+
     conn = None
     cursor = None
     try:
-        conn = get_connection()
+        conn = get_connection(username, password)
         cursor = conn.cursor(cursor_factory=extras.DictCursor)
 
         query = """
@@ -65,14 +82,11 @@ def get_latest_payments():
 
         payments = []
         for row in results:
-            # Обращаемся к полям в нижнем регистре
             payment_date = row['payment_date'].isoformat() if row['payment_date'] else "Нет платежей"
-
-            # Аналогично проверяем остальные поля
             amount_rub = row['amount'] / 100 if row['amount'] is not None else 0.00
 
             payment_data = {
-                "room_number": row['room_number'],  # также проверьте регистр
+                "room_number": row['room_number'],
                 "owner": row['owner'],
                 "last_payment_date": payment_date,
                 "amount": f"{amount_rub:.2f} руб."
@@ -105,16 +119,25 @@ def get_latest_payments():
         if conn:
             conn.close()
 
-
 @app.route('/api/public_utilities', methods=['GET'])
 def get_public_utilities():
+    # Получаем логин и пароль из query-параметров
+    username = request.args.get('username')
+    password = request.args.get('password')
+
+    # Проверяем аутентификацию
+    if not check_auth(username, password):
+        return jsonify({
+            "status": "error",
+            "message": "Неверный логин или пароль"
+        }), 401
+
     conn = None
     cursor = None
     try:
-        conn = get_connection()
+        conn = get_connection(username, password)
         cursor = conn.cursor(cursor_factory=extras.DictCursor)
 
-        # Запрос для получения коммунальных показателей
         query = """
             SELECT 
                 pu.Document_number,
@@ -145,7 +168,7 @@ def get_public_utilities():
                 "electricity_day": f"{row['electricity_day']} кВт·ч",
                 "electricity_night": f"{row['electricity_night']} кВт·ч",
                 "transfer_date": row['transfer_date'].isoformat(),
-                "amount": f"{row['amount'] / 100:.2f} руб."  # Предполагаем, что Amount хранится в копейках
+                "amount": f"{row['amount'] / 100:.2f} руб."
             }
             utilities.append(utility_data)
 
@@ -174,7 +197,6 @@ def get_public_utilities():
             cursor.close()
         if conn:
             conn.close()
-
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
