@@ -11,10 +11,27 @@ logger = logging.getLogger(__name__)
 
 # Данные для аутентификации
 USER_DATA = {
-    "admin": "root",
-    "user1": "qwerty",
-    "user2": "123456"
+    "administrator": "root"
 }
+
+@app.route('/api/check_auth', methods=['POST'])
+def check_auth_login():
+    # Получаем данные из запроса
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+
+    # Проверяем, есть ли такой пользователь и совпадает ли пароль
+    if username in USER_DATA and USER_DATA[username] == password:
+        return jsonify({
+            "status": "success",
+            "message": "Аутентификация успешна"
+        }), 200
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "Неверный логин или пароль"
+        }), 401
 
 def get_connection(username, password):
     """Создает новое соединение с базой данных"""
