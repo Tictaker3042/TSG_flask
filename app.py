@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 # Данные для аутентификации
 USER_DATA = {
-    "administrator": "root"
+    "admin": "root",
+    "user1": "qwerty",
+    "user2": "123456"
 }
 
 def get_connection(username, password):
