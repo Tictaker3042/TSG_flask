@@ -2,13 +2,14 @@ from flask import Flask, jsonify
 import psycopg2
 from psycopg2 import extras
 import logging
-from datetime import date
+
 
 app = Flask(__name__)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def get_connection():
     """Создает новое соединение с базой данных"""
@@ -173,6 +174,7 @@ def get_public_utilities():
             cursor.close()
         if conn:
             conn.close()
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
