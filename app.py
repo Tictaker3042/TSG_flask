@@ -105,5 +105,74 @@ def get_latest_payments():
             conn.close()
 
 
+@app.route('/api/public_utilities', methods=['GET'])
+def get_public_utilities():
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=extras.DictCursor)
+
+        # Запрос для получения коммунальных показателей
+        query = """
+            SELECT 
+                pu.Document_number,
+                pu.Room_number,
+                pu.VG AS cold_water,
+                pu.VH AS hot_water,
+                pu.E1 AS electricity_day,
+                pu.E2 AS electricity_night,
+                pu.Transfer_date,
+                pu.Amount,
+                CONCAT(fo.Owner_name, ' ', fo.Owner_surname) AS owner_full_name
+            FROM Public_utilities pu
+            LEFT JOIN Flat_owner fo ON pu.Room_number = fo.Room_number
+            ORDER BY pu.Transfer_date DESC;
+        """
+
+        cursor.execute(query)
+        results = cursor.fetchall()
+
+        utilities = []
+        for row in results:
+            utility_data = {
+                "document_number": row['document_number'],
+                "room_number": row['room_number'],
+                "owner": row['owner_full_name'] if row['owner_full_name'] else "Не указан",
+                "cold_water": f"{row['cold_water']} куб.м",
+                "hot_water": f"{row['hot_water']} куб.м",
+                "electricity_day": f"{row['electricity_day']} кВт·ч",
+                "electricity_night": f"{row['electricity_night']} кВт·ч",
+                "transfer_date": row['transfer_date'].isoformat(),
+                "amount": f"{row['amount'] / 100:.2f} руб."  # Предполагаем, что Amount хранится в копейках
+            }
+            utilities.append(utility_data)
+
+        return jsonify({
+            "status": "success",
+            "results": len(utilities),
+            "data": utilities
+        }), 200
+
+    except psycopg2.DatabaseError as e:
+        logger.error(f"Database error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Ошибка базы данных"
+        }), 500
+
+    except Exception as e:
+        logger.error(f"System error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Внутренняя ошибка сервера"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
