@@ -20,7 +20,8 @@ def check_auth_login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-
+    print(username)
+    print(password)
     # Проверяем, есть ли такой пользователь и совпадает ли пароль
     if username in USER_DATA and USER_DATA[username] == password:
         return jsonify({
