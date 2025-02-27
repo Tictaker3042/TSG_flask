@@ -140,41 +140,53 @@ def get_latest_payments():
             conn.close()
 
 @app.route('/api/public_utilities', methods=['GET'])
-def get_public_utilities():
-    # Получаем логин и пароль из query-параметров
-    username = request.args.get('username')
-    password = request.args.get('password')
-
-    # Проверяем аутентификацию
-    if not check_auth(username, password):
-        return jsonify({
-            "status": "error",
-            "message": "Неверный логин или пароль"
-        }), 401
-
-    conn = None
-    cursor = None
+@app.route('/api/public_utilities/<int:room_number>', methods=['GET'])
+def get_public_utilities(room_number=None):
+    username = 'administrator'
+    password = 'root'
+    conn = None  # Инициализируем переменную conn
+    cursor = None  # Инициализируем переменную cursor
     try:
         conn = get_connection(username, password)
         cursor = conn.cursor(cursor_factory=extras.DictCursor)
 
-        query = """
-            SELECT 
-                pu.Document_number,
-                pu.Room_number,
-                pu.VG AS cold_water,
-                pu.VH AS hot_water,
-                pu.E1 AS electricity_day,
-                pu.E2 AS electricity_night,
-                pu.Transfer_date,
-                pu.Amount,
-                CONCAT(fo.Owner_name, ' ', fo.Owner_surname) AS owner_full_name
-            FROM Public_utilities pu
-            LEFT JOIN Flat_owner fo ON pu.Room_number = fo.Room_number
-            ORDER BY pu.Transfer_date DESC;
-        """
+        # Формируем SQL-запрос в зависимости от наличия room_number
+        if room_number is not None:
+            query = """
+                SELECT 
+                    pu.Document_number,
+                    pu.Room_number,
+                    pu.VG AS cold_water,
+                    pu.VH AS hot_water,
+                    pu.E1 AS electricity_day,
+                    pu.E2 AS electricity_night,
+                    pu.Transfer_date,
+                    pu.Amount,
+                    CONCAT(fo.Owner_name, ' ', fo.Owner_surname) AS owner_full_name
+                FROM Public_utilities pu
+                LEFT JOIN Flat_owner fo ON pu.Room_number = fo.Room_number
+                WHERE pu.Room_number = %s  -- Фильтрация по номеру комнаты
+                ORDER BY pu.Transfer_date DESC;
+            """
+            cursor.execute(query, (room_number,))  # Передаем номер комнаты как параметр
+        else:
+            query = """
+                SELECT 
+                    pu.Document_number,
+                    pu.Room_number,
+                    pu.VG AS cold_water,
+                    pu.VH AS hot_water,
+                    pu.E1 AS electricity_day,
+                    pu.E2 AS electricity_night,
+                    pu.Transfer_date,
+                    pu.Amount,
+                    CONCAT(fo.Owner_name, ' ', fo.Owner_surname) AS owner_full_name
+                FROM Public_utilities pu
+                LEFT JOIN Flat_owner fo ON pu.Room_number = fo.Room_number
+                ORDER BY pu.Transfer_date DESC;
+            """
+            cursor.execute(query)  # Выполняем запрос для всех комнат
 
-        cursor.execute(query)
         results = cursor.fetchall()
 
         utilities = []
@@ -192,11 +204,8 @@ def get_public_utilities():
             }
             utilities.append(utility_data)
 
-        return jsonify({
-            "status": "success",
-            "results": len(utilities),
-            "data": utilities
-        }), 200
+        # Возвращаем массив напрямую
+        return jsonify(utilities), 200  # Возвращаем массив JSON
 
     except psycopg2.DatabaseError as e:
         logger.error(f"Database error: {str(e)}")
@@ -213,10 +222,13 @@ def get_public_utilities():
         }), 500
 
     finally:
-        if cursor:
+        # Закрываем cursor и conn, если они были инициализированы
+        if cursor is not None:
             cursor.close()
-        if conn:
+        if conn is not None:
             conn.close()
+
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
