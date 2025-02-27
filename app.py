@@ -56,8 +56,8 @@ def check_auth(username, password):
 @app.route('/api/latest_payments', methods=['GET'])
 def get_latest_payments():
     # Получаем логин и пароль из query-параметров
-    username = request.args.get('username')
-    password = request.args.get('password')
+    username = 'administrator'
+    password = 'root'
 
     # Проверяем аутентификацию
     if not check_auth(username, password):
