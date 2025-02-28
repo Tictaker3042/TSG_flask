@@ -123,11 +123,7 @@ def get_latest_payments(room_number=None):
             }
             payments.append(payment_data)
 
-        return jsonify({
-            "status": "success",
-            "results": len(payments),
-            "data": payments
-        }), 200
+        return jsonify(payments), 200
 
     except psycopg2.DatabaseError as e:
         logger.error(f"Database error: {str(e)}")
