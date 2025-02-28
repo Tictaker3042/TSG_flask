@@ -20,8 +20,6 @@ def check_auth_login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    print(username)
-    print(password)
     # Проверяем, есть ли такой пользователь и совпадает ли пароль
     if username in USER_DATA and USER_DATA[username] == password:
         return jsonify({
@@ -150,8 +148,8 @@ def get_latest_payments(room_number=None):
 def get_public_utilities(room_number=None):
     username = 'administrator'
     password = 'root'
-    conn = None  # Инициализируем переменную conn
-    cursor = None  # Инициализируем переменную cursor
+    conn = None
+    cursor = None
     try:
         conn = get_connection(username, password)
         cursor = conn.cursor(cursor_factory=extras.DictCursor)
