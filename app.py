@@ -54,7 +54,8 @@ def check_auth(username, password):
     return username in USER_DATA and USER_DATA[username] == password
 
 @app.route('/api/latest_payments', methods=['GET'])
-def get_latest_payments():
+@app.route('/api/latest_payments/<int:room_number>', methods=['GET'])
+def get_latest_payments(room_number=None):
     # Получаем логин и пароль из query-параметров
     username = 'administrator'
     password = 'root'
@@ -72,32 +73,40 @@ def get_latest_payments():
         conn = get_connection(username, password)
         cursor = conn.cursor(cursor_factory=extras.DictCursor)
 
+        # Базовый запрос
         query = """
             WITH latest_payments AS (
                 SELECT 
-                    a.Room_number,
+                    fo.Room_number,  -- Используем Room_number из flat_owner
                     CONCAT(fo.Owner_name, ' ', fo.Owner_surname) AS owner_full_name,
                     p.Payment_date,
                     p.Amount,
+                    pu.Document_number,  -- Добавляем document_number из public_utilities
                     ROW_NUMBER() OVER (
-                        PARTITION BY a.Room_number 
+                        PARTITION BY fo.Room_number 
                         ORDER BY p.Payment_date DESC NULLS LAST
                     ) AS payment_rank
-                FROM Apartments a
-                LEFT JOIN Flat_owner fo ON a.Room_number = fo.Room_number
-                LEFT JOIN Payments p ON fo.Owner_id = p.Owner_id
+                FROM Flat_owner fo
+                LEFT JOIN Payments p ON fo.Owner_id = p.Owner_id  -- Связь через owner_id
+                LEFT JOIN Public_utilities pu ON fo.Room_number = pu.Room_number  -- Связь через room_number
             )
             SELECT 
                 Room_number,
                 COALESCE(owner_full_name, 'Не указан') AS owner,
                 Payment_date,
-                Amount
+                Amount,
+                Document_number  -- Выбираем document_number
             FROM latest_payments
             WHERE payment_rank = 1
-            ORDER BY Room_number;
         """
 
-        cursor.execute(query)
+        # Добавляем фильтрацию по room_number, если он указан
+        if room_number is not None:
+            query += " AND Room_number = %s"
+            cursor.execute(query, (room_number,))
+        else:
+            cursor.execute(query)
+
         results = cursor.fetchall()
 
         payments = []
@@ -106,10 +115,11 @@ def get_latest_payments():
             amount_rub = row['amount'] / 100 if row['amount'] is not None else 0.00
 
             payment_data = {
-                "room_number": row['room_number'],
+                "room_number": row['room_number'],  # Room_number из flat_owner
                 "owner": row['owner'],
                 "last_payment_date": payment_date,
-                "amount": f"{amount_rub:.2f} руб."
+                "amount": f"{amount_rub:.2f} руб.",
+                "document_number": row['document_number']  # Добавляем document_number
             }
             payments.append(payment_data)
 
